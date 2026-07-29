@@ -2,7 +2,7 @@
 // FASTAPI CONFIGURATION
 // =========================================================
 
-const API_URL = "https://email-spam-detection-eac8.onrender.com/predict";
+const API_URL = "https://email-spam-detection-eac8.onrender.com";
 
 // =========================================================
 // GET ELEMENTS
