@@ -61,9 +61,23 @@ clearBtn.addEventListener("click", function () {
 
   charCount.textContent = "0 characters";
 
+  // Hide result
+
   resultContainer.classList.remove("show", "spam", "ham");
 
+  // Hide error
+
   errorBox.classList.remove("show");
+
+  // Reset bars
+
+  confidenceBar.style.width = "0%";
+
+  spamBar.style.width = "0%";
+
+  hamBar.style.width = "0%";
+
+  // Focus textarea
 
   emailText.focus();
 });
@@ -99,39 +113,59 @@ function formatPercentage(value) {
 // =========================================================
 
 function displayResult(data) {
+  // ---------------------------------------------
+  // GET API DATA
+  // ---------------------------------------------
+
   const prediction = data.prediction;
 
-  const confidence = data.confidence;
+  const confidence = Number(data.confidence);
 
-  const spam = data.probability_spam;
+  const spam = Number(data.probability_spam);
 
-  const ham = data.probability_ham;
+  const ham = Number(data.probability_ham);
 
   // ---------------------------------------------
-  // RESET RESULT
+  // RESET RESULT CLASSES
   // ---------------------------------------------
 
   resultContainer.classList.remove("spam", "ham");
 
   // ---------------------------------------------
-  // CHECK PREDICTION
+  // CHECK SPAM OR HAM
   // ---------------------------------------------
 
-  if (prediction.toLowerCase() === "spam") {
+  if (prediction && prediction.toLowerCase() === "spam") {
+    // Spam class
+
     resultContainer.classList.add("spam");
+
+    // Spam icon
 
     resultIcon.textContent = "🚨";
 
+    // Spam title
+
     predictionText.textContent = "Spam Detected";
+
+    // Spam message
 
     resultMessage.textContent =
       "⚠️ This email has been classified as spam. Be careful with links, attachments, and requests for personal information.";
   } else {
+    // Ham class
+
     resultContainer.classList.add("ham");
+
+    // Ham icon
 
     resultIcon.textContent = "✅";
 
+    // Ham title
+
     predictionText.textContent = "Safe Email";
+
+    // Ham message
 
     resultMessage.textContent =
       "✅ This email has been classified as legitimate (Ham).";
@@ -146,10 +180,14 @@ function displayResult(data) {
   confidenceValue.textContent = formatPercentage(confidence);
 
   // ---------------------------------------------
-  // PROBABILITIES
+  // SPAM PROBABILITY
   // ---------------------------------------------
 
   spamProbability.textContent = formatPercentage(spam);
+
+  // ---------------------------------------------
+  // HAM PROBABILITY
+  // ---------------------------------------------
 
   hamProbability.textContent = formatPercentage(ham);
 
@@ -160,15 +198,15 @@ function displayResult(data) {
   resultContainer.classList.add("show");
 
   // ---------------------------------------------
-  // ANIMATE BARS
+  // ANIMATE PROGRESS BARS
   // ---------------------------------------------
 
   setTimeout(function () {
-    confidenceBar.style.width = confidence * 100 + "%";
+    confidenceBar.style.width = `${confidence * 100}%`;
 
-    spamBar.style.width = spam * 100 + "%";
+    spamBar.style.width = `${spam * 100}%`;
 
-    hamBar.style.width = ham * 100 + "%";
+    hamBar.style.width = `${ham * 100}%`;
   }, 100);
 }
 
@@ -178,13 +216,13 @@ function displayResult(data) {
 
 analyzeBtn.addEventListener("click", async function () {
   // ---------------------------------------------
-  // GET EMAIL
+  // GET EMAIL TEXT
   // ---------------------------------------------
 
   const email = emailText.value.trim();
 
   // ---------------------------------------------
-  // VALIDATE
+  // VALIDATE EMAIL
   // ---------------------------------------------
 
   if (!email) {
@@ -196,73 +234,118 @@ analyzeBtn.addEventListener("click", async function () {
   }
 
   // ---------------------------------------------
-  // HIDE OLD RESULTS
+  // HIDE PREVIOUS ERROR
   // ---------------------------------------------
 
   hideError();
 
+  // ---------------------------------------------
+  // HIDE PREVIOUS RESULT
+  // ---------------------------------------------
+
   resultContainer.classList.remove("show");
 
   // ---------------------------------------------
-  // LOADING
+  // RESET PROGRESS BARS
+  // ---------------------------------------------
+
+  confidenceBar.style.width = "0%";
+
+  spamBar.style.width = "0%";
+
+  hamBar.style.width = "0%";
+
+  // ---------------------------------------------
+  // START LOADING
   // ---------------------------------------------
 
   analyzeBtn.classList.add("loading");
 
   try {
-    // -----------------------------------------
-    // API REQUEST
-    // -----------------------------------------
+    // =================================================
+    // IMPORTANT:
+    // FastAPI endpoint is:
+    //
+    // @app.post("/predict")
+    //
+    // Therefore we MUST call:
+    //
+    // /predict
+    // =================================================
 
-    const response = await fetch(API_URL, {
+    const response = await fetch(`${API_URL}/predict`, {
+      // MUST be POST
+
       method: "POST",
+
+      // JSON header
 
       headers: {
         "Content-Type": "application/json",
       },
+
+      // FastAPI expects:
+      //
+      // {
+      //   "email": "your email text"
+      // }
 
       body: JSON.stringify({
         email: email,
       }),
     });
 
-    // -----------------------------------------
-    // HANDLE ERROR
-    // -----------------------------------------
+    // ---------------------------------------------
+    // CHECK RESPONSE STATUS
+    // ---------------------------------------------
+
+    console.log("API Status:", response.status);
+
+    // ---------------------------------------------
+    // HANDLE API ERROR
+    // ---------------------------------------------
 
     if (!response.ok) {
-      let errorText = "Prediction failed.";
+      let errorText = `Server error: ${response.status}`;
 
       try {
         const errorData = await response.json();
 
-        errorText = errorData.detail || errorText;
-      } catch (error) {
-        // Ignore JSON parsing error
+        if (errorData.detail) {
+          errorText = errorData.detail;
+        }
+      } catch (jsonError) {
+        console.error("Error reading server response:", jsonError);
       }
 
       throw new Error(errorText);
     }
 
-    // -----------------------------------------
-    // GET RESPONSE
-    // -----------------------------------------
+    // ---------------------------------------------
+    // GET JSON RESPONSE
+    // ---------------------------------------------
 
     const data = await response.json();
 
-    // -----------------------------------------
+    // ---------------------------------------------
+    // DEBUG RESPONSE
+    // ---------------------------------------------
+
+    console.log("Prediction response:", data);
+
+    // ---------------------------------------------
     // DISPLAY RESULT
-    // -----------------------------------------
+    // ---------------------------------------------
 
     displayResult(data);
   } catch (error) {
-    console.error(error);
+    console.error("Prediction Error:", error);
 
-    showError("Unable to connect to the AI server. " + error.message);
+    showError("Prediction failed: " + error.message);
   } finally {
-    // -----------------------------------------
+    // ---------------------------------------------
     // STOP LOADING
-    // -----------------------------------------
+    // ---------------------------------------------
 
     analyzeBtn.classList.remove("loading");
   }
