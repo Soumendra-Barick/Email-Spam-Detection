@@ -5,15 +5,34 @@ import re
 
 import numpy as np
 import tensorflow as tf
+import nltk
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-from fastapi.middleware.cors import CORSMiddleware
+
+
+# ============================================================
+# NLTK RESOURCE SETUP
+# ============================================================
+
+# Download required NLTK resources
+# This fixes the "Resource punkt_tab not found" error on Render.
+
+try:
+    nltk.download("punkt_tab", quiet=True)
+    nltk.download("punkt", quiet=True)
+    nltk.download("stopwords", quiet=True)
+
+    print("✅ NLTK resources downloaded successfully.")
+
+except Exception as e:
+    print(f"⚠️ NLTK download warning: {e}")
 
 
 # ============================================================
@@ -26,14 +45,26 @@ app = FastAPI(
     version="1.0.0"
 )
 
+
+# ============================================================
+# CORS CONFIGURATION
+# ============================================================
+
 app.add_middleware(
     CORSMiddleware,
+
     allow_origins=[
         "http://127.0.0.1:5500",
-        "http://localhost:5500"
+        "http://localhost:5500",
+
+        # Add your deployed frontend URL here later
+        # "https://your-frontend-url.com"
     ],
+
     allow_credentials=True,
+
     allow_methods=["*"],
+
     allow_headers=["*"],
 )
 
@@ -191,7 +222,15 @@ try:
         )
     )
 
-except Exception:
+    print(
+        "✅ Stopwords loaded successfully."
+    )
+
+except Exception as e:
+
+    print(
+        f"⚠️ Stopwords could not be loaded: {e}"
+    )
 
     Stops = set()
 
@@ -199,11 +238,11 @@ except Exception:
 # ============================================================
 # TEXT PREPROCESSING
 #
-# This exactly follows your notebook:
+# Processing steps:
 #
-# 1. Lowercase
+# 1. Convert text to lowercase
 # 2. Remove punctuation
-# 3. Word tokenize
+# 3. Tokenize words
 # 4. Remove stopwords
 # 5. Join words
 # 6. Remove hyperlinks
@@ -332,13 +371,15 @@ def home():
             "Email Spam/Ham Classification"
 
     }
-    
+
+
 # ============================================================
 # HEAD ENDPOINT
 # ============================================================
 
 @app.head("/")
 def head_home():
+
     return
 
 
@@ -430,6 +471,22 @@ def predict_email(
 
 
     # ========================================================
+    # CHECK LABEL MAPPING
+    # ========================================================
+
+    if label_mapping is None:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+            "Label mapping file is not loaded."
+
+        )
+
+
+    # ========================================================
     # VALIDATE EMAIL
     # ========================================================
 
@@ -510,13 +567,9 @@ def predict_email(
         # ====================================================
         # GET SPAM PROBABILITY
         #
-        # Your model:
+        # Model output:
         #
-        # Dense(1, activation='sigmoid')
-        #
-        # Therefore output is probability of class 1.
-        #
-        # Your mapping:
+        # Dense(1, activation="sigmoid")
         #
         # 0 = Ham
         # 1 = Spam
@@ -525,6 +578,25 @@ def predict_email(
         probability_spam = float(
 
             prediction[0][0]
+
+        )
+
+
+        # ====================================================
+        # ENSURE VALID PROBABILITY
+        # ====================================================
+
+        probability_spam = max(
+
+            0.0,
+
+            min(
+
+                1.0,
+
+                probability_spam
+
+            )
 
         )
 
@@ -549,21 +621,29 @@ def predict_email(
         if probability_spam >= 0.5:
 
             predicted_label = (
+
                 label_mapping[1]
+
             )
 
             confidence = (
+
                 probability_spam
+
             )
 
         else:
 
             predicted_label = (
+
                 label_mapping[0]
+
             )
 
             confidence = (
+
                 probability_ham
+
             )
 
 
@@ -575,27 +655,42 @@ def predict_email(
 
             email=email_text,
 
-            prediction=predicted_label,
+            prediction=str(
+                predicted_label
+            ),
 
             confidence=round(
+
                 confidence,
+
                 4
+
             ),
 
             probability_spam=round(
+
                 probability_spam,
+
                 4
+
             ),
 
             probability_ham=round(
+
                 probability_ham,
+
                 4
+
             )
 
         )
 
 
     except Exception as e:
+
+        print(
+            f"❌ Prediction error: {e}"
+        )
 
         raise HTTPException(
 
