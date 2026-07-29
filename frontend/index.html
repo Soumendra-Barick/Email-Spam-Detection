@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>SpamShield AI</title>
+
+    <link
+        rel="stylesheet"
+        href="style.css"
+    >
+
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+        rel="stylesheet"
+    >
+
+</head>
+
+
+<body>
+
+    <!-- Animated Background -->
+
+    <div class="background">
+
+        <div class="orb orb-one"></div>
+
+        <div class="orb orb-two"></div>
+
+        <div class="orb orb-three"></div>
+
+    </div>
+
+
+    <!-- Main Application -->
+
+    <main class="app-container">
+
+
+        <!-- Header -->
+
+        <header class="navbar">
+
+            <div class="brand">
+
+                <div class="brand-icon">
+                    🛡️
+                </div>
+
+                <div>
+
+                    <h2>
+                        SpamShield
+                    </h2>
+
+                    <span>
+                        AI Security
+                    </span>
+
+                </div>
+
+            </div>
+
+
+            <div class="status">
+
+                <span class="status-dot"></span>
+
+                <span>
+                    AI Engine Online
+                </span>
+
+            </div>
+
+        </header>
+
+
+        <!-- Hero -->
+
+        <section class="hero">
+
+            <div class="hero-badge">
+
+                <span>✦</span>
+
+                Powered by GRU Deep Learning
+
+            </div>
+
+
+            <h1>
+
+                Detect Spam.
+                <span>Protect Your Inbox.</span>
+
+            </h1>
+
+
+            <p>
+
+                Paste an email below and let our AI analyze
+                whether it's safe or potentially malicious.
+
+            </p>
+
+        </section>
+
+
+        <!-- Main Card -->
+
+        <section class="scanner-card">
+
+
+            <!-- Card Header -->
+
+            <div class="card-header">
+
+                <div>
+
+                    <h2>
+                        Analyze Email
+                    </h2>
+
+                    <p>
+                        Enter the email content you want to check.
+                    </p>
+
+                </div>
+
+
+                <div class="model-badge">
+
+                    <span class="pulse"></span>
+
+                    GRU Model
+
+                </div>
+
+            </div>
+
+
+            <!-- Email Input -->
+
+            <div class="input-wrapper">
+
+                <div class="input-label">
+
+                    <label for="emailText">
+
+                        Email Content
+
+                    </label>
+
+                    <span id="charCount">
+                        0 characters
+                    </span>
+
+                </div>
+
+
+                <textarea
+                    id="emailText"
+                    placeholder="Paste or type your email message here..."
+                    maxlength="10000"
+                ></textarea>
+
+
+                <div class="input-footer">
+
+                    <span>
+                        🔒 Your email is analyzed securely.
+                    </span>
+
+                    <button
+                        class="clear-btn"
+                        id="clearBtn"
+                    >
+                        Clear
+                    </button>
+
+                </div>
+
+            </div>
+
+
+            <!-- Analyze Button -->
+
+            <button
+                class="analyze-btn"
+                id="analyzeBtn"
+            >
+
+                <span class="btn-icon">
+                    🔍
+                </span>
+
+                <span class="btn-text">
+                    Analyze Email
+                </span>
+
+                <span class="loader"></span>
+
+            </button>
+
+
+            <!-- Error -->
+
+            <div
+                class="error-box"
+                id="errorBox"
+            >
+
+                <span>⚠️</span>
+
+                <span id="errorMessage">
+                    Something went wrong.
+                </span>
+
+            </div>
+
+
+            <!-- Result -->
+
+            <div
+                class="result-container"
+                id="resultContainer"
+            >
+
+
+                <!-- Result Header -->
+
+                <div class="result-header">
+
+                    <div
+                        class="result-icon"
+                        id="resultIcon"
+                    >
+                        🚨
+                    </div>
+
+
+                    <div>
+
+                        <span class="result-label">
+                            AI ANALYSIS RESULT
+                        </span>
+
+                        <h2 id="predictionText">
+                            Spam Detected
+                        </h2>
+
+                    </div>
+
+
+                    <div
+                        class="confidence"
+                        id="confidenceText"
+                    >
+                        99.98%
+                    </div>
+
+                </div>
+
+
+                <!-- Confidence -->
+
+                <div class="confidence-section">
+
+                    <div class="confidence-title">
+
+                        <span>
+                            Model Confidence
+                        </span>
+
+                        <strong id="confidenceValue">
+                            99.98%
+                        </strong>
+
+                    </div>
+
+
+                    <div class="progress-track">
+
+                        <div
+                            class="progress-bar"
+                            id="confidenceBar"
+                        ></div>
+
+                    </div>
+
+                </div>
+
+
+                <!-- Probability Cards -->
+
+                <div class="probability-grid">
+
+
+                    <div class="probability-card spam-card">
+
+                        <div class="probability-top">
+
+                            <span>
+                                🚨
+                            </span>
+
+                            <span>
+                                Spam Probability
+                            </span>
+
+                        </div>
+
+
+                        <strong id="spamProbability">
+                            99.98%
+                        </strong>
+
+
+                        <div class="mini-progress">
+
+                            <div
+                                id="spamBar"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+
+                    <div class="probability-card ham-card">
+
+                        <div class="probability-top">
+
+                            <span>
+                                ✅
+                            </span>
+
+                            <span>
+                                Ham Probability
+                            </span>
+
+                        </div>
+
+
+                        <strong id="hamProbability">
+                            0.02%
+                        </strong>
+
+
+                        <div class="mini-progress">
+
+                            <div
+                                id="hamBar"
+                            ></div>
+
+                        </div>
+
+                    </div>
+
+
+                </div>
+
+
+                <!-- Result Message -->
+
+                <div
+                    class="result-message"
+                    id="resultMessage"
+                >
+
+                    This email has been classified as spam.
+
+                </div>
+
+
+            </div>
+
+        </section>
+
+
+        <!-- Features -->
+
+        <section class="features">
+
+
+            <div class="feature-card">
+
+                <div class="feature-icon">
+                    🧠
+                </div>
+
+                <h3>
+                    GRU Intelligence
+                </h3>
+
+                <p>
+                    Deep learning analyzes patterns
+                    in email content.
+                </p>
+
+            </div>
+
+
+            <div class="feature-card">
+
+                <div class="feature-icon">
+                    ⚡
+                </div>
+
+                <h3>
+                    Instant Analysis
+                </h3>
+
+                <p>
+                    Get predictions in seconds
+                    with our AI engine.
+                </p>
+
+            </div>
+
+
+            <div class="feature-card">
+
+                <div class="feature-icon">
+                    🔐
+                </div>
+
+                <h3>
+                    Secure Detection
+                </h3>
+
+                <p>
+                    Analyze suspicious messages
+                    before opening them.
+                </p>
+
+            </div>
+
+
+        </section>
+
+
+        <!-- Footer -->
+
+        <footer>
+
+            <div class="footer-brand">
+
+                🛡️ SpamShield AI
+
+            </div>
+
+            <p>
+
+                Intelligent Email Spam Detection
+
+                <span>•</span>
+
+                Powered by GRU Deep Learning
+
+            </p>
+
+        </footer>
+
+
+    </main>
+
+
+    <script src="script.js"></script>
+
+</body>
+
+</html>
