@@ -1,38 +1,26 @@
+# ============================================================
+# SPAMSHIELD AI - FASTAPI BACKEND
+# Email Spam / Ham Detection using GRU Deep Learning
+# ============================================================
+
 import os
 import pickle
 import string
 import re
+import time
 
 import numpy as np
 import tensorflow as tf
-import nltk
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+import nltk
 from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
 
 from tensorflow.keras.preprocessing.sequence import pad_sequences
-
-
-# ============================================================
-# NLTK RESOURCE SETUP
-# ============================================================
-
-# Download required NLTK resources
-# This fixes the "Resource punkt_tab not found" error on Render.
-
-try:
-    nltk.download("punkt_tab", quiet=True)
-    nltk.download("punkt", quiet=True)
-    nltk.download("stopwords", quiet=True)
-
-    print("✅ NLTK resources downloaded successfully.")
-
-except Exception as e:
-    print(f"⚠️ NLTK download warning: {e}")
 
 
 # ============================================================
@@ -49,16 +37,32 @@ app = FastAPI(
 # ============================================================
 # CORS CONFIGURATION
 # ============================================================
+#
+# Local frontend:
+# http://127.0.0.1:5500
+# http://localhost:5500
+#
+# Deployed frontend:
+# https://email-spam-detections-427w.onrender.com
+#
+# IMPORTANT:
+# Make sure your deployed frontend URL exactly matches
+# the URL shown in your browser.
+# ============================================================
 
 app.add_middleware(
     CORSMiddleware,
+
     allow_origins=[
         "http://127.0.0.1:5500",
         "http://localhost:5500",
         "https://email-spam-detections-427w.onrender.com"
     ],
+
     allow_credentials=True,
+
     allow_methods=["*"],
+
     allow_headers=["*"],
 )
 
@@ -98,148 +102,376 @@ LABEL_MAPPING_PATH = os.path.join(
 
 
 # ============================================================
+# GLOBAL VARIABLES
+# ============================================================
+
+model_gru = None
+
+tokenizer = None
+
+config = None
+
+label_mapping = None
+
+Stops = set()
+
+
+# ============================================================
+# LOAD NLTK DATA
+# ============================================================
+#
+# We try to download the required resources if they are
+# missing.
+#
+# IMPORTANT:
+# On Render, the resources are downloaded during startup.
+# For a production setup, you can also install them during
+# the build process.
+# ============================================================
+
+def setup_nltk():
+
+    global Stops
+
+    try:
+
+        # --------------------------------------------
+        # Check punkt
+        # --------------------------------------------
+
+        try:
+
+            nltk.data.find(
+                "tokenizers/punkt"
+            )
+
+        except LookupError:
+
+            print(
+                "⚠️ punkt not found. Downloading..."
+            )
+
+            nltk.download(
+                "punkt",
+                quiet=True
+            )
+
+
+        # --------------------------------------------
+        # Check punkt_tab
+        # --------------------------------------------
+
+        try:
+
+            nltk.data.find(
+                "tokenizers/punkt_tab"
+            )
+
+        except LookupError:
+
+            print(
+                "⚠️ punkt_tab not found. Downloading..."
+            )
+
+            nltk.download(
+                "punkt_tab",
+                quiet=True
+            )
+
+
+        # --------------------------------------------
+        # Check stopwords
+        # --------------------------------------------
+
+        try:
+
+            nltk.data.find(
+                "corpora/stopwords"
+            )
+
+        except LookupError:
+
+            print(
+                "⚠️ stopwords not found. Downloading..."
+            )
+
+            nltk.download(
+                "stopwords",
+                quiet=True
+            )
+
+
+        # --------------------------------------------
+        # Load stopwords
+        # --------------------------------------------
+
+        Stops = set(
+            stopwords.words(
+                "english"
+            )
+        )
+
+        print(
+            "✅ NLTK resources loaded successfully."
+        )
+
+        print(
+            f"✅ Stopwords loaded: {len(Stops)}"
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ NLTK setup error: {e}"
+        )
+
+        Stops = set()
+
+
+# ============================================================
 # LOAD GRU MODEL
 # ============================================================
 
-try:
+def load_model():
 
-    model_gru = tf.keras.models.load_model(
-        MODEL_PATH
-    )
+    global model_gru
 
-    print(
-        "✅ GRU model loaded successfully."
-    )
+    try:
 
-except Exception as e:
+        print(
+            "⏳ Loading GRU model..."
+        )
 
-    print(
-        f"❌ Error loading GRU model: {e}"
-    )
+        model_gru = tf.keras.models.load_model(
+            MODEL_PATH,
+            compile=False
+        )
 
-    model_gru = None
+        print(
+            "✅ GRU model loaded successfully."
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error loading GRU model: {e}"
+        )
+
+        model_gru = None
 
 
 # ============================================================
 # LOAD TOKENIZER
 # ============================================================
 
-try:
+def load_tokenizer():
 
-    with open(
-        TOKENIZER_PATH,
-        "rb"
-    ) as f:
+    global tokenizer
 
-        tokenizer = pickle.load(
-            f
+    try:
+
+        print(
+            "⏳ Loading tokenizer..."
         )
 
-    print(
-        "✅ Tokenizer loaded successfully."
-    )
+        with open(
+            TOKENIZER_PATH,
+            "rb"
+        ) as f:
 
-except Exception as e:
+            tokenizer = pickle.load(
+                f
+            )
 
-    print(
-        f"❌ Error loading tokenizer: {e}"
-    )
+        print(
+            "✅ Tokenizer loaded successfully."
+        )
 
-    tokenizer = None
+    except Exception as e:
+
+        print(
+            f"❌ Error loading tokenizer: {e}"
+        )
+
+        tokenizer = None
 
 
 # ============================================================
 # LOAD CONFIG
 # ============================================================
 
-try:
+def load_config():
 
-    with open(
-        CONFIG_PATH,
-        "rb"
-    ) as f:
+    global config
 
-        config = pickle.load(
-            f
+    try:
+
+        print(
+            "⏳ Loading config..."
         )
 
-    print(
-        "✅ Config loaded successfully."
-    )
+        with open(
+            CONFIG_PATH,
+            "rb"
+        ) as f:
 
-except Exception as e:
+            config = pickle.load(
+                f
+            )
 
-    print(
-        f"❌ Error loading config: {e}"
-    )
+        print(
+            "✅ Config loaded successfully."
+        )
 
-    config = None
+        print(
+            f"✅ Config: {config}"
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error loading config: {e}"
+        )
+
+        config = None
 
 
 # ============================================================
 # LOAD LABEL MAPPING
 # ============================================================
 
-try:
+def load_label_mapping():
 
-    with open(
-        LABEL_MAPPING_PATH,
-        "rb"
-    ) as f:
+    global label_mapping
 
-        label_mapping = pickle.load(
-            f
+    try:
+
+        print(
+            "⏳ Loading label mapping..."
         )
 
-    print(
-        "✅ Label mapping loaded successfully."
-    )
+        with open(
+            LABEL_MAPPING_PATH,
+            "rb"
+        ) as f:
 
-except Exception as e:
+            label_mapping = pickle.load(
+                f
+            )
 
-    print(
-        f"❌ Error loading label mapping: {e}"
-    )
+        print(
+            "✅ Label mapping loaded successfully."
+        )
 
-    label_mapping = None
+        print(
+            f"✅ Label mapping: {label_mapping}"
+        )
+
+    except Exception as e:
+
+        print(
+            f"❌ Error loading label mapping: {e}"
+        )
+
+        label_mapping = None
 
 
 # ============================================================
-# STOPWORDS
+# STARTUP EVENT
+# ============================================================
+#
+# All heavy resources are loaded once when FastAPI starts.
+#
+# This prevents loading the GRU model for every prediction.
 # ============================================================
 
-try:
+@app.on_event("startup")
+def startup_event():
 
-    Stops = set(
-        stopwords.words(
-            "english"
-        )
+    print(
+        ""
     )
 
     print(
-        "✅ Stopwords loaded successfully."
+        "============================================================"
     )
-
-except Exception as e:
 
     print(
-        f"⚠️ Stopwords could not be loaded: {e}"
+        "🚀 Starting SpamShield AI..."
     )
 
-    Stops = set()
+    print(
+        "============================================================"
+    )
+
+
+    # --------------------------------------------
+    # NLTK
+    # --------------------------------------------
+
+    setup_nltk()
+
+
+    # --------------------------------------------
+    # Model
+    # --------------------------------------------
+
+    load_model()
+
+
+    # --------------------------------------------
+    # Tokenizer
+    # --------------------------------------------
+
+    load_tokenizer()
+
+
+    # --------------------------------------------
+    # Config
+    # --------------------------------------------
+
+    load_config()
+
+
+    # --------------------------------------------
+    # Label mapping
+    # --------------------------------------------
+
+    load_label_mapping()
+
+
+    print(
+        "============================================================"
+    )
+
+    print(
+        "✅ SpamShield AI startup completed."
+    )
+
+    print(
+        "============================================================"
+    )
+
+    print(
+        ""
+    )
 
 
 # ============================================================
 # TEXT PREPROCESSING
+# ============================================================
 #
-# Processing steps:
+# This follows your original preprocessing:
 #
-# 1. Convert text to lowercase
+# 1. Lowercase
 # 2. Remove punctuation
-# 3. Tokenize words
+# 3. Word tokenize
 # 4. Remove stopwords
 # 5. Join words
 # 6. Remove hyperlinks
+#
+# IMPORTANT:
+# Keep preprocessing consistent with your training notebook.
 # ============================================================
 
 def preprocess_text(
@@ -368,7 +600,7 @@ def home():
 
 
 # ============================================================
-# HEAD ENDPOINT
+# HEAD ROOT ENDPOINT
 # ============================================================
 
 @app.head("/")
@@ -399,9 +631,163 @@ def health_check():
             config is not None,
 
         "label_mapping_loaded":
-            label_mapping is not None
+            label_mapping is not None,
+
+        "nltk_stopwords_loaded":
+            len(Stops) > 0
 
     }
+
+
+# ============================================================
+# WARMUP ENDPOINT
+# ============================================================
+#
+# This endpoint can be called after the Render service starts
+# to initialize the model for inference.
+#
+# It performs one tiny dummy prediction.
+# ============================================================
+
+@app.get("/warmup")
+def warmup():
+
+    if model_gru is None:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                "GRU model is not loaded."
+
+        )
+
+
+    if tokenizer is None:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                "Tokenizer is not loaded."
+
+        )
+
+
+    if config is None:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                "Config is not loaded."
+
+        )
+
+
+    try:
+
+        start_time = time.perf_counter()
+
+
+        # --------------------------------------------
+        # Dummy text
+        # --------------------------------------------
+
+        dummy_text = "hello"
+
+
+        # --------------------------------------------
+        # Tokenize
+        # --------------------------------------------
+
+        sequence = tokenizer.texts_to_sequences(
+
+            [dummy_text]
+
+        )
+
+
+        # --------------------------------------------
+        # Get max length
+        # --------------------------------------------
+
+        max_length = config[
+            "max_length"
+        ]
+
+
+        # --------------------------------------------
+        # Pad
+        # --------------------------------------------
+
+        padded_sequence = pad_sequences(
+
+            sequence,
+
+            maxlen=max_length,
+
+            padding="post"
+
+        )
+
+
+        # --------------------------------------------
+        # Run model
+        # --------------------------------------------
+
+        model_gru(
+
+            padded_sequence,
+
+            training=False
+
+        ).numpy()
+
+
+        # --------------------------------------------
+        # Calculate time
+        # --------------------------------------------
+
+        elapsed_time = (
+
+            time.perf_counter()
+
+            - start_time
+
+        )
+
+
+        return {
+
+            "status":
+                "warm",
+
+            "message":
+                "GRU model is ready for prediction.",
+
+            "inference_time_seconds":
+                round(
+                    elapsed_time,
+                    4
+                )
+
+        }
+
+
+    except Exception as e:
+
+        raise HTTPException(
+
+            status_code=500,
+
+            detail=
+                f"Warmup failed: {str(e)}"
+
+        )
 
 
 # ============================================================
@@ -417,6 +803,15 @@ def predict_email(
 ):
 
     # ========================================================
+    # START TIMER
+    # ========================================================
+
+    total_start_time = (
+        time.perf_counter()
+    )
+
+
+    # ========================================================
     # CHECK MODEL
     # ========================================================
 
@@ -427,7 +822,7 @@ def predict_email(
             status_code=500,
 
             detail=
-            "GRU model is not loaded."
+                "GRU model is not loaded."
 
         )
 
@@ -443,7 +838,7 @@ def predict_email(
             status_code=500,
 
             detail=
-            "Tokenizer is not loaded."
+                "Tokenizer is not loaded."
 
         )
 
@@ -459,7 +854,7 @@ def predict_email(
             status_code=500,
 
             detail=
-            "Config file is not loaded."
+                "Config file is not loaded."
 
         )
 
@@ -475,7 +870,7 @@ def predict_email(
             status_code=500,
 
             detail=
-            "Label mapping file is not loaded."
+                "Label mapping is not loaded."
 
         )
 
@@ -494,7 +889,7 @@ def predict_email(
             status_code=400,
 
             detail=
-            "Email text cannot be empty."
+                "Email text cannot be empty."
 
         )
 
@@ -505,14 +900,33 @@ def predict_email(
         # PREPROCESS EMAIL
         # ====================================================
 
+        preprocess_start_time = (
+            time.perf_counter()
+        )
+
+
         cleaned_text = preprocess_text(
             email_text
+        )
+
+
+        preprocess_time = (
+
+            time.perf_counter()
+
+            - preprocess_start_time
+
         )
 
 
         # ====================================================
         # TOKENIZE
         # ====================================================
+
+        tokenization_start_time = (
+            time.perf_counter()
+        )
+
 
         sequence = tokenizer.texts_to_sequences(
 
@@ -545,28 +959,48 @@ def predict_email(
         )
 
 
+        tokenization_time = (
+
+            time.perf_counter()
+
+            - tokenization_start_time
+
+        )
+
+
         # ====================================================
         # MODEL PREDICTION
         # ====================================================
+        #
+        # Direct model call is used instead of model.predict()
+        # for lower overhead during single-email inference.
+        # ====================================================
 
-        prediction = model_gru.predict(
+        prediction_start_time = (
+            time.perf_counter()
+        )
+
+
+        prediction = model_gru(
 
             padded_sequence,
 
-            verbose=0
+            training=False
+
+        ).numpy()
+
+
+        prediction_time = (
+
+            time.perf_counter()
+
+            - prediction_start_time
 
         )
 
 
         # ====================================================
         # GET SPAM PROBABILITY
-        #
-        # Model output:
-        #
-        # Dense(1, activation="sigmoid")
-        #
-        # 0 = Ham
-        # 1 = Spam
         # ====================================================
 
         probability_spam = float(
@@ -577,7 +1011,7 @@ def predict_email(
 
 
         # ====================================================
-        # ENSURE VALID PROBABILITY
+        # PROTECT AGAINST INVALID PROBABILITY
         # ====================================================
 
         probability_spam = max(
@@ -585,11 +1019,8 @@ def predict_email(
             0.0,
 
             min(
-
                 1.0,
-
                 probability_spam
-
             )
 
         )
@@ -642,6 +1073,65 @@ def predict_email(
 
 
         # ====================================================
+        # TOTAL TIME
+        # ====================================================
+
+        total_time = (
+
+            time.perf_counter()
+
+            - total_start_time
+
+        )
+
+
+        # ====================================================
+        # PERFORMANCE LOG
+        # ====================================================
+
+        print(
+            ""
+        )
+
+        print(
+            "---------------- PREDICTION PERFORMANCE ----------------"
+        )
+
+        print(
+            f"Preprocessing time : "
+            f"{preprocess_time:.4f} seconds"
+        )
+
+        print(
+            f"Tokenization time  : "
+            f"{tokenization_time:.4f} seconds"
+        )
+
+        print(
+            f"Model inference    : "
+            f"{prediction_time:.4f} seconds"
+        )
+
+        print(
+            f"Total prediction   : "
+            f"{total_time:.4f} seconds"
+        )
+
+        print(
+            f"Prediction         : "
+            f"{predicted_label}"
+        )
+
+        print(
+            "----------------------------------------------------------"
+        )
+
+        print(
+            ""
+        )
+
+
+        # ====================================================
         # RETURN RESPONSE
         # ====================================================
 
@@ -649,9 +1139,7 @@ def predict_email(
 
             email=email_text,
 
-            prediction=str(
-                predicted_label
-            ),
+            prediction=predicted_label,
 
             confidence=round(
 
@@ -686,11 +1174,38 @@ def predict_email(
             f"❌ Prediction error: {e}"
         )
 
+
         raise HTTPException(
 
             status_code=500,
 
             detail=
-            f"Prediction failed: {str(e)}"
+                f"Prediction failed: {str(e)}"
 
         )
+
+
+# ============================================================
+# LOCAL DEVELOPMENT
+# ============================================================
+
+if __name__ == "__main__":
+
+    import uvicorn
+
+    uvicorn.run(
+
+        "main:app",
+
+        host="0.0.0.0",
+
+        port=int(
+            os.environ.get(
+                "PORT",
+                8000
+            )
+        ),
+
+        reload=False
+
+    )
